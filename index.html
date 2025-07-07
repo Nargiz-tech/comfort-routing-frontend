@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comfort-based Routing</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        html,
+        body,
+        #map {
+            height: 100%;
+            margin: 0;
+            font-family: "Inter", sans-serif;
+        }
+
+        /* General styles for range sliders: more aesthetic, rounded */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            outline: none;
+            opacity: 0.8;
+            transition: opacity .15s ease-in-out;
+            border-radius: 4px;
+        }
+
+        input[type="range"]:hover {
+            opacity: 1;
+        }
+
+        /* Styles for slider thumb (WebKit/Blink) */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #22c55e;
+            cursor: pointer;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            transition: background .15s ease-in-out, box-shadow .15s ease-in-out;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            background: #16a34a;
+        }
+
+        /* Styles for slider thumb (Firefox) */
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #22c55e;
+            cursor: pointer;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            transition: background .15s ease-in-out, box-shadow .15s ease-in-out;
+        }
+
+        input[type="range"]::-moz-range-thumb:hover {
+            background: #16a34a;
+        }
+
+        /* Fill for slider track (Firefox) */
+        input[type="range"]::-moz-range-progress {
+            background-color: #22c55e;
+            border-radius: 4px;
+        }
+
+        /* Responsive styles for mobile devices */
+        @media (max-width: 768px) {
+            .flex {
+                flex-direction: column;
+            }
+
+            aside {
+                width: 100%;
+                max-height: 50vh;
+            }
+
+            main {
+                flex-grow: 1;
+                min-height: 50vh;
+            }
+        }
+
+        /* Styles for custom markers */
+        .leaflet-div-icon.start-marker {
+            background-color: #38a169;
+            border-radius: 50%;
+            width: 15px;
+            height: 15px;
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 3px rgba(56, 161, 105, 0.5);
+        }
+
+        .leaflet-div-icon.end-marker {
+            background-color: #3182ce;
+            border-radius: 50%;
+            width: 15px;
+            height: 15px;
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.5);
+        }
+
+        /* Custom Leaflet Legend */
+        .info.legend {
+            background: white;
+            padding: 6px 8px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+            border-radius: 5px;
+        }
+
+        .info.legend i {
+            width: 18px;
+            height: 18px;
+            float: left;
+            margin-right: 8px;
+            opacity: 0.7;
+            border-radius: 2px;
+        }
+        /* Improved alignment for legend items */
+        .info.legend .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 4px; /* Spacing between legend items */
+        }
+        .info.legend .legend-item:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Improved spacing for metrics section */
+        .metric-item-container {
+            margin-bottom: 12px; /* Spacing between Comfort/Shortest metric groups */
+        }
+        .metric-item-container:last-child {
+            margin-bottom: 0;
+        }
+        .metric-label-row {
+            margin-bottom: 4px; /* Spacing between metric label and its bars */
+        }
+        .metric-value-row {
+            margin-bottom: 4px; /* Spacing between bar and description */
+        }
+
+        /* Centering text below the metric bar */
+        .metric-description {
+            text-align: center;
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-50 font-sans text-gray-800">
+    <div class="flex flex-col md:flex-row h-screen">
+
+        <!-- Left Panel: Route Preferences -->
+        <aside
+            class="w-full md:w-72 bg-white shadow-md p-4 overflow-y-auto rounded-lg md:rounded-l-lg md:rounded-r-none">
+            <h2 class="text-2xl font-bold mb-4 text-gray-900">Route Preferences</h2>
+
+            <div class="mb-6 space-y-3">
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-gray-700">Start Address</label>
+                    <input id="startAddress" type="text" placeholder="e.g. Lerchenstraße 5"
+                        class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500 transition duration-150 ease-in-out">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1 text-gray-700">End Address</label>
+                    <input id="endAddress" type="text" placeholder="e.g. Mühlenkamp 21"
+                        class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500 transition duration-150 ease-in-out">
+                </div>
+            </div>
+
+            <div class="space-y-4 text-sm">
+                <!-- Safety Preferences Group -->
+                <div class="group">
+                    <button type="button" onclick="toggleGroup('safety-group')"
+                        class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors">
+                        Safety <svg id="safety-arrow" xmlns="http://www.w3.org/2000/svg"
+                            class="h-4 w-4 transition-transform duration-300 transform ml-2 text-gray-600" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </button>
+                    <div id="safety-group" class="hidden space-y-4 mt-2 pl-4 border-l-2 border-gray-200">
+                        <div class="space-y-1">
+                            <label for="sidewalks" class="block text-gray-700 flex items-center mb-1">
+                                <span class="mr-2">🧱</span> Sidewalks
+                            </label>
+                            <input type="range" id="sidewalks" min="0" max="10" step="5" value="5"
+                                class="w-full accent-green-600">
+                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label for="surface" class="block text-gray-700 flex items-center mb-1">
+                                <span class="mr-2">🛣️</span> Surface
+                            </label>
+                            <input type="range" id="surface" min="0" max="10" step="5" value="5"
+                                class="w-full accent-green-600">
+                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label for="lights" class="block text-gray-700 flex items-center mb-1">
+                                <span class="mr-2">💡</span> Lights
+                            </label>
+                            <input type="range" id="lights" min="0" max="10" step="5" value="5"
+                                class="w-full accent-green-600">
+                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label for="crossings" class="block text-gray-700 flex items-center mb-1">
+                                <span class="mr-2">🚸</span> Crossings
+                            </label>
+                            <input type="range" id="crossings" min="0" max="10" step="5" value="5"
+                                class="w-full accent-green-600">
+                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label for="speed" class="block text-gray-700 flex items-center mb-1">
+                                <span class="mr-2">🚘</span> Auto Speed
+                            </label>
+                            <input type="range" id="speed" min="0" max="10" step="5" value="5"
+                                class="w-full accent-green-600">
+                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label for="lanes" class="block text-gray-700 flex items-center mb-1">
+                                <span class="mr-2">🚗</span> Auto Lanes
+                            </label>
+                            <input type="range" id="lanes" min="0" max="10" step="5" value="5"
+                                class="w-full accent-green-600">
+                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Comfort Preferences Group -->
+                <div class="group">
+                    <button type="button" onclick="toggleGroup('comfort-group')"
+                        class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors">
+                        Comfort <svg id="comfort-arrow" xmlns="http://www.w3.org/2000/svg"
+                            class="h-4 w-4 transition-transform duration-300 transform ml-2 text-gray-600" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </button>
+                    <div id="comfort-group" class="hidden space-y-4 mt-2 pl-4 border-l-2 border-gray-200">
+                        <div class="space-y-1">
+                            <label for="steepness" class="block text-gray-700 flex items-center mb-1">
+                                <span class="mr-2">🧗</span> Steepness
+                            </label>
+                            <input type="range" id="steepness" min="0" max="10" step="5" value="5"
+                                class="w-full accent-green-600">
+                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label for="buildings" class="block text-gray-700 flex items-center mb-1">
+                                <span class="mr-2">🏢</span> Buildings
+                            </label>
+                            <input type="range" id="buildings" min="0" max="10" step="5" value="5"
+                                class="w-full accent-green-600">
+                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label for="benches" class="block text-gray-700 flex items-center mb-1">
+                                <span class="mr-2">🪑</span> Benches
+                            </label>
+                            <input type="range" id="benches" min="0" max="10" step="5" value="5"
+                                class="w-full accent-green-600">
+                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aesthetics Preferences Group -->
+                <div class="group">
+                    <button type="button" onclick="toggleGroup('aesthetic-group')"
+                        class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors">
+                        Aesthetics <svg id="aesthetic-arrow" xmlns="http://www.w3.org/2000/svg"
+                            class="h-4 w-4 transition-transform duration-300 transform ml-2 text-gray-600" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </button>
+                    <div id="aesthetic-group" class="hidden space-y-4 mt-2 pl-4 border-l-2 border-gray-200">
+                        <div class="space-y-1">
+                            <label for="greenery" class="block text-gray-700 flex items-center mb-1">
+                                <span class="mr-2">🌳</span> Greenery
+                            </label>
+                            <input type="range" id="greenery" min="0" max="10" step="5" value="5"
+                                class="w-full accent-green-600">
+                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label for="water" class="block text-gray-700 flex items-center mb-1">
+                                <span class="mr-2">🚰</span> Water
+                            </label>
+                            <input type="range" id="water" min="0" max="10" step="5" value="5"
+                                class="w-full accent-green-600">
+                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label for="attractiveness" class="block text-gray-700 flex items-center mb-1">
+                                <span class="mr-2">✨</span> Attractiveness
+                            </label>
+                            <input type="range" id="attractiveness" min="0" max="10" step="5" value="5"
+                                class="w-full accent-green-600">
+                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Functionality Preferences Group -->
+                <div class="group">
+                    <button type="button" onclick="toggleGroup('function-group')"
+                        class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors">
+                        Functionality <svg id="function-arrow" xmlns="http://www.w3.org/2000/svg"
+                            class="h-4 w-4 transition-transform duration-300 transform ml-2 text-gray-600" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </button>
+                    <div id="function-group" class="hidden space-y-4 mt-2 pl-4 border-l-2 border-gray-200">
+                        <div class="space-y-1">
+                            <label for="facilities" class="block text-gray-700 flex items-center mb-1">
+                                <span class="mr-2">🏪</span> Facilities
+                            </label>
+                            <input type="range" id="facilities" min="0" max="10" step="5" value="5"
+                                class="w-full accent-green-600">
+                            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Comfort-Distance Balance Slider -->
+                <div class="pt-4 border-t border-gray-200 mt-4">
+                    <label for="length" class="block text-gray-700 font-semibold mb-1">⚖️ Comfort-Distance Balance</label>
+                    <input type="range" id="length" min="1" max="3" value="2" class="w-full accent-green-600">
+                    <div class="grid grid-cols-3 text-xs text-gray-500 mt-1">
+                        <span class="text-left">Prioritize Shortness</span>
+                        <span class="text-center">Balanced</span>
+                        <span class="text-right">Prioritize Comfort</span>
+                    </div>
+                </div>
+
+                <!-- Walking Speed Slider -->
+                <div class="pt-4 border-t border-gray-200 mt-4">
+                    <label for="walkingSpeed" class="block text-gray-700 font-semibold mb-1">🚶 Walking Speed</label>
+                    <input type="range" id="walkingSpeed" min="1" max="3" value="2" class="w-full accent-green-600">
+                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                        <span class="w-1/3 text-left">Slow</span>
+                        <span class="w-1/3 text-center">Moderate</span>
+                        <span class="w-1/3 text-right">Fast</span>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Button to trigger route generation -->
+            <button id="generateRoutesButton"
+                class="mt-6 w-full bg-green-600 text-white py-3 rounded-full shadow-lg hover:bg-green-700 transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75">
+                Generate Routes
+            </button>
+
+            <!-- Loading indicator -->
+            <div id="loadingIndicator" class="mt-4 hidden text-center text-green-600">
+                <p>Generating routes...</p>
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto mt-2"></div>
+            </div>
+
+            <!-- Message box for errors/info -->
+            <div id="messageBox"
+                class="mt-4 p-3 hidden rounded-md text-sm text-red-700 bg-red-100 border border-red-200">
+                <!-- Messages will be displayed here -->
+            </div>
+        </aside>
+
+        <!-- Main Content: Map Display -->
+        <main class="flex-1 relative h-1/2 md:h-full">
+            <div id="map" class="absolute inset-0 z-0 bg-gray-200 rounded-lg md:rounded-none"></div>
+
+            <!-- "My Location" Button -->
+            <button id="findMeButton"
+                class="absolute bottom-4 right-4 z-10 bg-white p-3 rounded-full shadow-lg hover:bg-gray-100 transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+            </button>
+        </main>
+
+        <!-- Right Panel: Route Comparison and Visualization Options -->
+        <aside
+            class="w-full md:w-72 bg-white shadow-md p-4 overflow-y-auto rounded-lg md:rounded-r-lg md:rounded-l-none">
+            <h2 class="text-2xl font-bold mb-4 text-gray-900">Route Comparison</h2>
+
+            <div id="metricsContainer" class="space-y-4 text-sm">
+                <!-- Total Length and Estimated Time Section -->
+                <div class="mb-4">
+                    <div class="p-4 rounded-xl bg-green-50 shadow-sm border border-green-200 mb-2">
+                        <p class="font-semibold text-green-800 mb-1">🟢 Comfort-optimized route</p>
+                        <p id="comfortRouteLength" class="text-gray-700">Total length: Calculating...</p>
+                        <p id="comfortRouteTime" class="text-gray-700">Estimated time: Calculating...</p>
+                        <!-- Summary of user preferences -->
+                        <div id="userPreferencesSummary" class="mt-3 pt-2 border-t border-green-200 text-green-700 space-y-2">
+                            <p class="font-semibold mb-1">Your Custom Preferences:</p>
+                        </div>
+                    </div>
+                    <div class="p-4 rounded-xl bg-blue-50 shadow-sm border border-blue-200">
+                        <p class="font-semibold text-blue-800 mb-1">🔵 Shortest route</p>
+                        <p id="shortestRouteLength" class="text-gray-700">Total length: Calculating...</p>
+                        <p id="shortestRouteTime" class="text-gray-700">Estimated time: Calculating...</p>
+                    </div>
+                </div>
+
+                <!-- Average Qualities Section -->
+                <div class="pt-4 border-t border-gray-200 mt-4 space-y-4">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-3">Average Qualities:</h3>
+
+                    <!-- Metrics Safety Group -->
+                    <div class="group">
+                        <button type="button" onclick="toggleGroup('metrics-safety-group')"
+                            class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors">
+                            Safety <svg id="metrics-safety-arrow" xmlns="http://www.w3.org/2000/svg"
+                                class="h-4 w-4 transition-transform duration-300 transform ml-2 text-gray-600"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </button>
+                        <div id="metrics-safety-group" class="hidden space-y-3 mt-2 pl-4 border-l-2 border-gray-200">
+                            <!-- Safety metrics will be inserted here dynamically by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Metrics Comfort Group -->
+                    <div class="group">
+                        <button type="button" onclick="toggleGroup('metrics-comfort-group')"
+                            class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors">
+                            Comfort <svg id="metrics-comfort-arrow" xmlns="http://www.w3.org/2000/svg"
+                                class="h-4 w-4 transition-transform duration-300 transform ml-2 text-gray-600"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </button>
+                        <div id="metrics-comfort-group" class="hidden space-y-3 mt-2 pl-4 border-l-2 border-gray-200">
+                            <!-- Comfort metrics will be inserted here dynamically by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Metrics Aesthetics Group -->
+                    <div class="group">
+                        <button type="button" onclick="toggleGroup('metrics-aesthetic-group')"
+                            class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors">
+                            Aesthetics <svg id="metrics-aesthetic-arrow" xmlns="http://www.w3.org/2000/svg"
+                                class="h-4 w-4 transition-transform duration-300 transform ml-2 text-gray-600"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </button>
+                        <div id="metrics-aesthetic-group" class="hidden space-y-3 mt-2 pl-4 border-l-2 border-gray-200">
+                            <!-- Aesthetics metrics will be inserted here dynamically by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Metrics Functionality Group -->
+                    <div class="group">
+                        <button type="button" onclick="toggleGroup('metrics-function-group')"
+                            class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors">
+                            Functionality <svg id="metrics-function-arrow" xmlns="http://www.w3.org/2000/svg"
+                                class="h-4 w-4 transition-transform duration-300 transform ml-2 text-gray-600"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </button>
+                        <div id="metrics-function-group" class="hidden space-y-3 mt-2 pl-4 border-l-2 border-gray-200">
+                            <!-- Functionality metrics will be inserted here dynamically by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Map Visualization Options -->
+                    <div class="pt-4 border-t border-gray-200 mt-4">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-3">Map Visualization Options:</h3>
+                        <label for="visualizationMetricSelect" class="block text-gray-700 font-semibold mb-1">
+                            Visualize Metric on Map:
+                        </label>
+                        <select id="visualizationMetricSelect"
+                            class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500 transition duration-150 ease-in-out">
+                            <option value="">-- Default Route Colors --</option>
+                            <!-- Options will be populated by JS -->
+                        </select>
+                    </div>
+
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        /**
+         * Toggles the visibility of a group of elements and rotates its arrow icon.
+         * @param {string} groupId - The ID of the div element to toggle.
+         */
+        function toggleGroup(groupId) {
+            const groupElement = document.getElementById(groupId);
+            // Extract the prefix (e.g., 'safety' from 'safety-group') to find the corresponding arrow
+            const prefix = groupId.substring(0, groupId.lastIndexOf('-'));
+            const arrowElement = document.getElementById(`${prefix}-arrow`);
+
+            groupElement.classList.toggle('hidden'); // Toggle visibility
+            arrowElement.classList.toggle('rotate-90'); // Rotate arrow for visual feedback
+        }
+
+        // Initialize the Leaflet map, centered on Munich with a zoom level of 13
+        const map = L.map('map').setView([48.1351, 11.5820], 13);
+
+        // Define base tile layers for the map
+        const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19,
+            subdomains: 'abc' // Use multiple subdomains for faster tile loading
+        });
+
+        const cartoLightLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://carto.com/">CARTO</a> | &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(map); // Add CARTO Light layer to map by default
+
+        const cartoDarkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://carto.com/">CARTO</a> | &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            subdomains: 'abcd',
+            maxZoom: 19
+        });
+
+        // Define base layers for the layer control
+        const baseLayers = {
+            "CARTO Light": cartoLightLayer,
+            "OpenStreetMap": osmLayer,
+            "CARTO Dark": cartoDarkLayer
+        };
+        // Add layer control to the map
+        L.control.layers(baseLayers).addTo(map);
+
+        // Custom Leaflet DivIcons for start and end markers
+        const startIcon = L.divIcon({
+            className: 'leaflet-div-icon start-marker',
+            iconSize: [15, 15],
+            iconAnchor: [7.5, 7.5], // Center the icon
+            popupAnchor: [0, -7.5] // Position popup above the marker
+        });
+
+        const endIcon = L.divIcon({
+            className: 'leaflet-div-icon end-marker',
+            iconSize: [15, 15],
+            iconAnchor: [7.5, 7.5], // Center the icon
+            popupAnchor: [0, -7.5] // Position popup above the marker
+        });
+
+        // Global variables for map markers and route layers
+        let startMarker = null,
+            endMarker = null;
+        let activeClick = null; // To track if user is setting start/end point via map click
+        window.startCoords = null; // Global variable to store start coordinates
+        window.endCoords = null;   // Global variable to store end coordinates
+
+        // Leaflet GeoJSON layers for comfort and shortest routes
+        let comfortRouteLayer = null;
+        let shortestRouteLayer = null;
+
+        // Global variable for the currently selected visualization metric from the dropdown
+        // Initialized to null so default route colors are shown initially
+        let selectedVisualizationMetric = null;
+
+        // Get DOM elements for message box, loading indicator, user preferences summary, and visualization dropdown
+        const messageBox = document.getElementById('messageBox');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const userPreferencesSummary = document.getElementById('userPreferencesSummary');
+        const visualizationMetricSelect = document.getElementById('visualizationMetricSelect');
+
+        // Initialize Leaflet legend control
+        let legend = L.control({ position: 'bottomleft' });
+
+        // Helper functions for UI feedback
+
+        /**
+         * Displays a message in the message box.
+         * @param {string} message - The message text.
+         * @param {string} [type='info'] - The type of message ('info', 'success', 'error').
+         */
+        function showMessage(message, type = 'info') {
+            messageBox.textContent = message;
+            // Reset classes and add 'block' to show
+            messageBox.className = 'mt-4 p-3 rounded-md text-sm border';
+            messageBox.classList.add('block');
+
+            // Apply specific styling based on message type
+            if (type === 'error') {
+                messageBox.classList.add('bg-red-100', 'text-red-700', 'border-red-200');
+            } else if (type === 'success') {
+                messageBox.classList.add('bg-green-100', 'text-green-700', 'border-green-200');
+            } else { // Default to info (blue)
+                messageBox.classList.add('bg-blue-100', 'text-blue-700', 'border-blue-200');
+            }
+            // Hide info/success messages after 5 seconds
+            if (type !== 'error') {
+                setTimeout(() => {
+                    hideMessage();
+                }, 5000);
+            }
+        }
+
+        /** Hides the message box. */
+        function hideMessage() {
+            messageBox.classList.add('hidden');
+        }
+
+        /** Shows the loading indicator and hides any current message. */
+        function showLoading() {
+            loadingIndicator.classList.remove('hidden');
+            hideMessage();
+        }
+
+        /** Hides the loading indicator. */
+        function hideLoading() {
+            loadingIndicator.classList.add('hidden');
+        }
+
+        /**
+         * Geocodes an address string to latitude and longitude coordinates using OpenStreetMap Nominatim.
+         * Displays loading/error messages.
+         * @param {string} address - The address string to geocode.
+         * @returns {Promise<object|null>} A promise that resolves to {lat, lon} object or null on failure.
+         */
+        async function geocodeAddress(address) {
+            showLoading();
+            const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                hideLoading();
+                if (data.length === 0) {
+                    showMessage(`Address not found: "${address}". Please try a different address.`, 'error');
+                    return null;
+                }
+                return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+            } catch (error) {
+                hideLoading();
+                console.error("Geocoding error:", error);
+                showMessage(`Failed to geocode address "${address}". Please check your internet connection or try again.`, 'error');
+                return null;
+            }
+        }
+
+        /**
+         * Reverse geocodes latitude and longitude coordinates to a human-readable address string.
+         * @param {number} lat - Latitude.
+         * @param {number} lon - Longitude.
+         * @returns {Promise<string>} A promise that resolves to the address string or coordinates if not found.
+         */
+        async function reverseGeocode(lat, lon) {
+            const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`;
+            const res = await fetch(url);
+            const d = await res.json();
+            return d.display_name || `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+        }
+
+        /**
+         * Handles map click events to set start or end markers and update address input fields.
+         * @param {L.LeafletMouseEvent} e - The Leaflet map click event object.
+         */
+        function onMapClick(e) {
+            if (!activeClick) return; // Only proceed if an address input is active for map selection
+            const { lat, lng } = e.latlng;
+            reverseGeocode(lat, lng).then(address => {
+                if (activeClick === 'start') {
+                    if (startMarker) map.removeLayer(startMarker); // Remove existing start marker
+                    startMarker = L.marker([lat, lng], { icon: startIcon }).addTo(map); // Add new start marker
+                    document.getElementById('startAddress').value = address; // Update input field
+                    window.startCoords = { lat, lon: lng }; // Store coordinates globally
+                } else if (activeClick === 'end') {
+                    if (endMarker) map.removeLayer(endMarker); // Remove existing end marker
+                    endMarker = L.marker([lat, lng], { icon: endIcon }).addTo(map); // Add new end marker
+                    document.getElementById('endAddress').value = address; // Update input field
+                    window.endCoords = { lat, lon: lng }; // Store coordinates globally
+                }
+                activeClick = null; // Deactivate map click mode
+                map.getContainer().style.cursor = ''; // Reset map cursor
+            }).catch(error => {
+                console.error("Reverse geocoding error:", error);
+                showMessage("Failed to get address from map click.", "error");
+            });
+        }
+
+        // Event listeners for map interaction and location finding
+        map.on('click', onMapClick); // Listen for map clicks
+        document.getElementById('startAddress').addEventListener('focus', () => {
+            activeClick = 'start'; // Set active click mode to 'start'
+            map.getContainer().style.cursor = 'crosshair'; // Change cursor to crosshair
+            showMessage('Click on the map to set start location.', 'info');
+        });
+        document.getElementById('endAddress').addEventListener('focus', () => {
+            activeClick = 'end'; // Set active click mode to 'end'
+            map.getContainer().style.cursor = 'crosshair'; // Change cursor to crosshair
+            showMessage('Click on the map to set end location.', 'info');
+        });
+        document.getElementById('findMeButton').addEventListener('click', () => {
+            showLoading();
+            map.locate({ setView: true, maxZoom: 16, enableHighAccuracy: true }); // Locate user's position
+        });
+        map.on('locationfound', (e) => {
+            hideLoading();
+            if (window.currentLocationMarker) { map.removeLayer(window.currentLocationMarker); } // Remove old marker
+            window.currentLocationMarker = L.marker(e.latlng).addTo(map).bindPopup("You are here").openPopup(); // Add new marker
+            showMessage('Your location found!', 'success');
+        });
+        map.on('locationerror', (e) => {
+            hideLoading();
+            console.error("Geolocation error:", e.message);
+            showMessage(`Could not find your location: ${e.message}`, 'error');
+        });
+
+
+        /**
+         * Generates HTML for an aesthetic bar visualization of a metric value.
+         * Includes the bar, numeric value, and a descriptive label.
+         * @param {number|null} val - The numeric value of the metric (0-1), or null/NaN if not available.
+         * @param {string} [desc=''] - A qualitative description for the metric value.
+         * @returns {string} HTML string for the visualization bar.
+         */
+        function makePrettyBar(val, desc = '') {
+            const numericVal = parseFloat(val);
+            // If value is null or NaN, return a gray bar with "N/A"
+            if (numericVal === null || isNaN(numericVal)) return `
+                <div class="flex flex-col w-full items-start">
+                    <div class="flex items-center w-full space-x-2">
+                        <div class="flex-grow h-2 bg-gray-200 rounded-full overflow-hidden shadow-inner">
+                            <div class="h-full bg-gray-400 rounded-full transition-all duration-300 ease-out" style="width: 100%;"></div>
+                        </div>
+                        <span class="text-gray-700 text-xs font-semibold w-8 text-right">N/A</span>
+                    </div>
+                    <span class="text-gray-500 text-xs mt-1 -mb-1 text-center w-full">${desc || 'No Data'}</span>
+                </div>
+            `;
+
+            const percentage = numericVal * 100;
+            let barColorClass;
+
+            // Determine bar color based on value range
+            if (numericVal <= 0.25) barColorClass = 'bg-gradient-to-r from-red-400 to-orange-400';
+            else if (numericVal <= 0.50) barColorClass = 'bg-gradient-to-r from-yellow-400 to-green-400';
+            else if (numericVal <= 0.75) barColorClass = 'bg-gradient-to-r from-green-400 to-emerald-500';
+            else barColorClass = 'bg-gradient-to-r from-emerald-500 to-teal-600';
+
+            return `
+                <div class="flex flex-col w-full items-start">
+                    <div class="flex items-center w-full space-x-2">
+                        <div class="flex-grow h-2 bg-gray-200 rounded-full overflow-hidden shadow-inner">
+                            <div class="h-full ${barColorClass} rounded-full transition-all duration-300 ease-out" style="width: ${percentage}%;"></div>
+                        </div>
+                        <span class="text-gray-700 text-xs font-semibold w-8 text-right">${numericVal.toFixed(2)}</span>
+                    </div>
+                    <span class="text-gray-500 text-xs mt-1 -mb-1 metric-description">${desc}</span>
+                </div>
+            `;
+        }
+
+        /**
+         * Returns a concise qualitative category label for a given metric value.
+         * @param {number|null} value - The numeric value of the metric.
+         * @param {string} metricKey - The key of the metric (e.g., 'greenness_norm').
+         * @returns {string} The qualitative category label (e.g., "Excellent", "Very Steep").
+         */
+        function getMetricCategoryLabel(value, metricKey) {
+            const val = parseFloat(value);
+            if (isNaN(val)) return 'N/A';
+
+            let category;
+            // Adjusting bounds for distinct categories
+            if (val < 0.25) category = 0; // e.g., 0.00-0.249
+            else if (val < 0.50) category = 1; // e.g., 0.25-0.499
+            else if (val < 0.75) category = 2; // e.g., 0.50-0.749
+            else category = 3; // e.g., 0.75-1.00
+
+            // Labels for various metrics, providing qualitative descriptions for ranges
+            const labels = {
+                pedestrian_infrastructure_norm: ["Very Poor", "Limited", "Standard", "Excellent"],
+                pavement_norm: ["Very Rough", "Bumpy", "Smooth", "Very Smooth"],
+                max_speed_norm: ["High Speed", "Moderate Speed", "Low Speed", "Very Low Speed"],
+                greenness_norm: ["Scarce Greenery", "Some Greenery", "Good Greenery", "Abundant Greenery"],
+                buildings_norm: ["Heavily Built-Up", "Dense Buildings", "Moderately Open", "Very Open"],
+                crossings_norm: ["Difficult", "Challenging", "Standard", "Very Safe"],
+                facilities_norm: ["Very Few Amenities", "Limited Amenities", "Good Amenities", "Abundant Amenities"],
+                number_lanes_norm: ["Many Lanes", "Multiple Lanes", "Few Lanes", "Very Few Lanes"],
+                water_norm: ["No Water", "Limited Water Views", "Moderate Water Views", "Prominent Water Views"],
+                gradient_norm: ["Very Steep", "Steep", "Moderate Slope", "Very Gentle"],
+                benches: ["No Seating", "Limited Seating", "Adequate Seating", "Abundant Seating"],
+                light: ["Poorly Lit", "Dimly Lit", "Moderately Lit", "Well Lit"],
+                visuals: ["Unattractive", "Plain", "Pleasant", "Very Attractive"]
+            };
+
+            return labels[metricKey] ? labels[metricKey][category] : 'N/A';
+        }
+
+
+        // Mapping for user slider preferences text (0, 5, 10) to descriptive strings
+        const userPreferenceValueMap = {
+            '0': 'Ignore',
+            '5': 'Neutral',
+            '10': 'Important'
+        };
+
+        // Icons mapping for user preferences summary display
+        const iconMap = {
+            sidewalks: '🧱',
+            surface: '🛣️',
+            lights: '💡',
+            crossings: '🚸',
+            speed: '🚘',
+            lanes: '🚗',
+            steepness: '🧗',
+            buildings: '🏢',
+            benches: '�',
+            greenery: '🌳',
+            water: '🚰',
+            attractiveness: '✨',
+            facilities: '🏪'
+        };
+
+        // Mapping for backend metric keys to user-friendly display names (labels)
+        const metricDisplayInfo = {
+            pedestrian_infrastructure_norm: { label: 'Sidewalks' },
+            pavement_norm: { label: 'Surface' },
+            max_speed_norm: { label: 'Auto Speed' },
+            greenness_norm: { label: 'Greenery' },
+            buildings_norm: { label: 'Buildings' },
+            crossings_norm: { label: 'Crossings' },
+            facilities_norm: { label: 'Facilities' },
+            number_lanes_norm: { label: 'Auto Lanes' },
+            water_norm: { label: 'Water' },
+            gradient_norm: { label: 'Steepness' },
+            benches: { label: 'Benches' },
+            light: { label: 'Lights' },
+            visuals: { label: 'Attractiveness' }
+        };
+
+        // Dynamically populate the visualization metric select dropdown with options
+        Object.keys(metricDisplayInfo).forEach(key => {
+            const option = document.createElement('option');
+            option.value = key;
+            option.textContent = metricDisplayInfo[key].label;
+            visualizationMetricSelect.appendChild(option);
+        });
+
+        /**
+         * Returns a color based on a numeric value (0-1) for map visualization.
+         * Uses a red-to-green gradient.
+         * @param {number|null} value - The metric value.
+         * @returns {string} Hex color code.
+         */
+        function getColorForValue(value) {
+            const val = parseFloat(value);
+            if (isNaN(val) || val === null) return '#ccc'; // Default grey for missing data
+
+            if (val < 0.25) return '#d73027'; // Red (Worst)
+            if (val < 0.50) return '#fc8d59'; // Orange
+            if (val < 0.75) return '#91cf60'; // Light Green
+            return '#1a9850'; // Dark Green (Best)
+        }
+
+        /**
+         * Defines the styling for each GeoJSON feature (road segment) on the map.
+         * Applies either default route colors or a visualization color based on selected metric.
+         * @param {object} feature - The GeoJSON feature object.
+         * @returns {object} Leaflet path style options.
+         */
+        function getSegmentStyle(feature) {
+            const defaultWeight = 5;
+            const defaultOpacity = 0.8;
+            const defaultColorComfort = '#38a169'; // Green
+            const defaultColorShortest = '#3182ce'; // Blue
+
+            // If a visualization metric is selected and available in feature properties, apply its color
+            if (selectedVisualizationMetric && feature.properties && feature.properties[selectedVisualizationMetric] !== undefined) {
+                const metricValue = feature.properties[selectedVisualizationMetric];
+                return {
+                    color: getColorForValue(metricValue),
+                    weight: defaultWeight,
+                    opacity: defaultOpacity
+                };
+            } else {
+                // Otherwise, apply default styling based on route type ('comfort' or 'shortest')
+                const routeType = feature.properties ? feature.properties.route_type : null;
+                return {
+                    color: routeType === 'comfort' ? defaultColorComfort : defaultColorShortest,
+                    weight: routeType === 'comfort' ? 5 : 3, // Comfort route is thicker
+                    dashArray: routeType === 'shortest' ? '5,5' : null, // Shortest route is dashed
+                    opacity: defaultOpacity
+                };
+            }
+        }
+
+        /** Removes existing route layers from the map. */
+        function clearRouteLayers() {
+            if (comfortRouteLayer) {
+                map.removeLayer(comfortRouteLayer);
+                comfortRouteLayer = null;
+            }
+            if (shortestRouteLayer) {
+                map.removeLayer(shortestRouteLayer);
+                shortestRouteLayer = null;
+            }
+        }
+
+        /**
+         * Updates the map visualization by clearing old routes and drawing new ones
+         * based on the selected visualization metric or default colors.
+         * @param {object} comfortData - GeoJSON data for the comfort route.
+         * @param {object} shortestData - GeoJSON data for the shortest route.
+         */
+        function updateMapVisualization(comfortData, shortestData) {
+            clearRouteLayers(); // Clear existing layers first
+
+            // Add comfort route layer if data exists
+            if (comfortData) {
+                comfortRouteLayer = L.geoJSON(comfortData, {
+                    style: getSegmentStyle, // Use the dynamic style function
+                    onEachFeature: function (feature, layer) {
+                        let popupContent = `<b>Comfort Route Segment</b><br>`;
+                        // Add metric details to popup if a visualization metric is selected
+                        if (selectedVisualizationMetric && feature.properties && typeof feature.properties[selectedVisualizationMetric] === 'number') {
+                            const metricValue = feature.properties[selectedVisualizationMetric];
+                            const metricLabel = metricDisplayInfo[selectedVisualizationMetric] ? metricDisplayInfo[selectedVisualizationMetric].label : selectedVisualizationMetric;
+                            const categoryLabel = getMetricCategoryLabel(metricValue, selectedVisualizationMetric);
+                            popupContent += `${metricLabel}: ${metricValue.toFixed(2)} (${categoryLabel})`;
+                        } else {
+                            popupContent += `Default View`; // Message for default view
+                        }
+                        layer.bindPopup(popupContent);
+                    }
+                }).addTo(map);
+            }
+
+            // Add shortest route layer if data exists
+            if (shortestData) {
+                shortestRouteLayer = L.geoJSON(shortestData, {
+                    style: getSegmentStyle, // Use the dynamic style function
+                    onEachFeature: function (feature, layer) {
+                        let popupContent = `<b>Shortest Route Segment</b><br>`;
+                        // Add metric details to popup if a visualization metric is selected
+                        if (selectedVisualizationMetric && feature.properties && typeof feature.properties[selectedVisualizationMetric] === 'number') {
+                            const metricValue = feature.properties[selectedVisualizationMetric];
+                            const metricLabel = metricDisplayInfo[selectedVisualizationMetric] ? metricDisplayInfo[selectedVisualizationMetric].label : selectedVisualizationMetric;
+                            const categoryLabel = getMetricCategoryLabel(metricValue, selectedVisualizationMetric);
+                            popupContent += `${metricLabel}: ${metricValue.toFixed(2)} (${categoryLabel})`;
+                        } else {
+                            popupContent += `Default View`; // Message for default view
+                        }
+                        layer.bindPopup(popupContent);
+                    }
+                }).addTo(map);
+            }
+
+            // Update the legend to reflect the current visualization mode
+            legend.update(selectedVisualizationMetric);
+        }
+
+        // Leaflet Legend Control Setup
+        legend.onAdd = function (map) {
+            this._div = L.DomUtil.create('div', 'info legend');
+            this.update(null); // Initial call to show default route colors in legend
+            return this._div;
+        };
+
+        /**
+         * Updates the content of the Leaflet legend based on the selected visualization metric.
+         * @param {string|null} metricKey - The key of the metric being visualized, or null for default route colors.
+         */
+        legend.update = function (metricKey) {
+            this._div.innerHTML = ''; // Clear existing legend content
+            if (!metricKey) {
+                // Display legend for default route colors
+                this._div.innerHTML = '<h4>Route Legend</h4>' +
+                                      '<div class="legend-item"><i style="background:#38a169;"></i> Comfort Route</div>' +
+                                      '<div class="legend-item"><i style="background:#3182ce;"></i> Shortest Route</div>';
+                return;
+            }
+
+            // Display legend for a specific metric visualization
+            const metricLabel = metricDisplayInfo[metricKey] ? metricDisplayInfo[metricKey].label : metricKey;
+            const grades = [0, 0.25, 0.50, 0.75]; // Numeric boundaries for categories
+            let labels = ['<h4>' + metricLabel + ' Score</h4>'];
+
+            // Generate legend items for each metric category
+            for (let i = 0; i < grades.length; i++) {
+                const lowerBound = grades[i];
+                const upperBound = (i === grades.length - 1) ? 1.00 : grades[i + 1];
+                
+                // Use the midpoint of the range to get the representative color and category description
+                const testValue = lowerBound + (upperBound - lowerBound) / 2;
+
+                const color = getColorForValue(testValue); 
+                const categoryDesc = getMetricCategoryLabel(testValue, metricKey);
+
+                if (categoryDesc !== 'N/A') {
+                     labels.push(
+                        '<div class="legend-item"><i style="background:' + color + ';"></i> ' +
+                        `${lowerBound.toFixed(2)} &ndash; ${upperBound.toFixed(2)}: ` +
+                        `${categoryDesc}</div>`
+                    );
+                }
+            }
+            // Add a legend item for missing data (N/A)
+            labels.push('<div class="legend-item"><i style="background:#ccc;"></i> N/A: No Data</div>');
+
+            // Join all generated legend items and set as innerHTML
+            this._div.innerHTML = labels.join('');
+        };
+
+        // Add the legend control to the map when the script loads
+        legend.addTo(map);
+        legend.update(null); // Initialize legend with default route colors
+
+        // Event listener for the "Generate Routes" button click
+        document.getElementById('generateRoutesButton').addEventListener('click', async () => {
+            hideMessage(); // Hide any previous messages
+            showLoading(); // Show loading indicator
+
+            let start = window.startCoords; // Get start coordinates from global variable
+            let end = window.endCoords;     // Get end coordinates from global variable
+
+            const startAddressInput = document.getElementById('startAddress').value.trim();
+            const endAddressInput = document.getElementById('endAddress').value.trim();
+
+            // Geocode start address if not set via map click
+            if (!start && startAddressInput) {
+                start = await geocodeAddress(startAddressInput);
+                if (!start) { hideLoading(); return; } // Stop if geocoding fails
+            } else if (!start) {
+                hideLoading();
+                showMessage('Please enter or select a start address.', 'error');
+                return;
+            }
+
+            // Geocode end address if not set via map click
+            if (!end && endAddressInput) {
+                end = await geocodeAddress(endAddressInput);
+                if (!end) { hideLoading(); return; } // Stop if geocoding fails
+            } else if (!end) {
+                hideLoading();
+                showMessage('Please enter or select an end address.', 'error');
+                return;
+            }
+
+            // Collect all user preferences from sliders
+            const data = {
+                sidewalks: parseInt(document.getElementById('sidewalks').value),
+                steepness: parseInt(document.getElementById('steepness').value),
+                surface: parseInt(document.getElementById('surface').value),
+                speed: parseInt(document.getElementById('speed').value),
+                greenery: parseInt(document.getElementById('greenery').value),
+                buildings: parseInt(document.getElementById('buildings').value),
+                crossings: parseInt(document.getElementById('crossings').value),
+                facilities: parseInt(document.getElementById('facilities').value),
+                lanes: parseInt(document.getElementById('lanes').value),
+                water: parseInt(document.getElementById('water').value),
+                
+                benches: parseInt(document.getElementById('benches').value),
+                lights: parseInt(document.getElementById('lights').value),
+                attractiveness: parseInt(document.getElementById('attractiveness').value),
+
+                length: parseInt(document.getElementById('length').value),
+                walkingSpeed: parseInt(document.getElementById('walkingSpeed').value),
+                start,
+                end
+            };
+
+            try {
+                // Send a POST request to the Flask backend to generate routes
+                const response = await fetch('http://localhost:5000/route', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json(); // Parse the JSON response
+                hideLoading(); // Hide loading indicator
+
+                if (response.ok) {
+                    // Store route data globally to be accessible for visualization updates
+                    window.lastComfortRouteData = result.comfort;
+                    window.lastShortestRouteData = result.shortest;
+
+                    // Reset visualization dropdown to default and update map
+                    visualizationMetricSelect.value = ""; // Set dropdown to default option
+                    selectedVisualizationMetric = null; // Clear selected metric
+                    updateMapVisualization(window.lastComfortRouteData, window.lastShortestRouteData); // Draw routes with default colors
+
+
+                    // Add start and end markers to the map
+                    if (start && start.lat && start.lon) {
+                        if (startMarker) map.removeLayer(startMarker);
+                        startMarker = L.marker([start.lat, start.lon], { icon: startIcon }).addTo(map).bindPopup("Start").openPopup();
+                    } else { console.warn("Start coordinates missing:", start); }
+
+                    if (end && end.lat && end.lon) {
+                        if (endMarker) map.removeLayer(endMarker);
+                        endMarker = L.marker([end.lat, end.lon], { icon: endIcon }).addTo(map).bindPopup("End").openPopup();
+                    } else { console.warn("End coordinates missing:", end); }
+
+                    // Fit map bounds to show both generated routes
+                    if (comfortRouteLayer && comfortRouteLayer.getBounds().isValid()) {
+                        map.fitBounds(comfortRouteLayer.getBounds());
+                    } else if (shortestRouteLayer && shortestRouteLayer.getBounds().isValid()) {
+                        map.fitBounds(shortestRouteLayer.getBounds());
+                    } else {
+                        showMessage('No routes found for the given criteria.', 'info');
+                    }
+                    showMessage('Routes generated successfully!', 'success');
+
+                    // Update total length and estimated time for both routes
+                    const comfortLengthMeters = parseFloat(result.metrics.comfort.total_length);
+                    const shortestLengthMeters = parseFloat(result.metrics.shortest.total_length);
+                    const comfortLengthKm = (comfortLengthMeters / 1000).toFixed(2);
+                    const shortestLengthKm = (shortestLengthMeters / 1000).toFixed(2);
+
+                    // Calculate estimated walking time based on user's selected walking speed
+                    let selectedWalkingSpeedKmh;
+                    switch (data.walkingSpeed) {
+                        case 1: selectedWalkingSpeedKmh = 3.5; break; // Slow
+                        case 3: selectedWalkingSpeedKmh = 6.5; break; // Fast
+                        default: selectedWalkingSpeedKmh = 5.0; // Moderate
+                    }
+                    const selectedWalkingSpeedMetersPerMin = selectedWalkingSpeedKmh * 1000 / 60;
+
+                    const comfortTimeMinutes = (comfortLengthMeters / selectedWalkingSpeedMetersPerMin).toFixed(0);
+                    const shortestTimeMinutes = (shortestLengthMeters / selectedWalkingSpeedMetersPerMin).toFixed(0);
+
+                    document.getElementById('comfortRouteLength').textContent = `Total length: ${comfortLengthKm} km`;
+                    document.getElementById('comfortRouteTime').textContent = `Estimated time: ${comfortTimeMinutes} min`;
+                    document.getElementById('shortestRouteLength').textContent = `Total length: ${shortestLengthKm} km`;
+                    document.getElementById('shortestRouteTime').textContent = `Estimated time: ${shortestTimeMinutes} min`;
+
+                    // Display average qualities for both routes in the right panel
+                    const metrics = result.metrics;
+                    // Clear previous metric displays
+                    document.getElementById('metrics-safety-group').innerHTML = '';
+                    document.getElementById('metrics-comfort-group').innerHTML = '';
+                    document.getElementById('metrics-aesthetic-group').innerHTML = '';
+                    document.getElementById('metrics-function-group').innerHTML = '';
+
+                    // Define metric categories
+                    const safetyMetrics = ["pedestrian_infrastructure_norm", "pavement_norm", "light", "crossings_norm", "max_speed_norm", "number_lanes_norm"];
+                    const comfortMetrics = ["gradient_norm", "buildings_norm", "benches"];
+                    const aestheticMetrics = ["greenness_norm", "water_norm", "visuals"];
+                    const functionalityMetrics = ["facilities_norm"];
+
+                    /**
+                     * Appends a metric comparison block (Comfort vs. Shortest) to a specified group.
+                     * @param {string} key - The backend key for the metric.
+                     * @param {string} groupId - The ID of the HTML element where to append.
+                     */
+                    const appendMetricToGroup = (key, groupId) => {
+                        const displayName = metricDisplayInfo[key] ? metricDisplayInfo[key].label : key;
+                        const comfortVal = metrics.comfort ? metrics.comfort[key] : null;
+                        const shortestVal = metrics.shortest ? metrics.shortest[key] : null;
+                        const comfortDesc = getMetricCategoryLabel(comfortVal, key);
+                        const shortestDesc = getMetricCategoryLabel(shortestVal, key);
+
+                        // Append HTML for the metric comparison
+                        document.getElementById(groupId).innerHTML += `
+                                <div class="border-b border-gray-200 pb-3 last:border-b-0 last:pb-0 metric-item-container">
+                                    <div class="font-semibold text-gray-800 metric-label-row">${displayName}</div>
+                                    <div class="flex flex-col space-y-2 py-1">
+                                        <div class="flex items-start text-green-700 space-x-2 metric-value-row">
+                                            <span class="w-1/4 flex-shrink-0 pt-0.5">Comfort:</span> ${makePrettyBar(comfortVal, comfortDesc)}
+                                        </div>
+                                        <div class="flex items-start text-blue-700 space-x-2 metric-value-row">
+                                            <span class="w-1/4 flex-shrink-0 pt-0.5">Shortest:</span> ${makePrettyBar(shortestVal, shortestDesc)}
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                    };
+
+                    // Append metrics to their respective groups
+                    safetyMetrics.forEach(key => appendMetricToGroup(key, 'metrics-safety-group'));
+                    comfortMetrics.forEach(key => appendMetricToGroup(key, 'metrics-comfort-group'));
+                    aestheticMetrics.forEach(key => appendMetricToGroup(key, 'metrics-aesthetic-group'));
+                    functionalityMetrics.forEach(key => appendMetricToGroup(key, 'metrics-function-group'));
+
+                    // Populate user preferences summary in the right panel
+                    let summaryHtml = '';
+                    const allSliders = document.querySelectorAll(
+                        '#safety-group input[type="range"], ' +
+                        '#comfort-group input[type="range"], ' +
+                        '#aesthetic-group input[type="range"], ' +
+                        '#function-group input[type="range"]'
+                    );
+                    const lengthPreferenceValue = document.getElementById('length').value;
+                    const walkingSpeedValue = document.getElementById('walkingSpeed').value;
+
+                    // Add Comfort-Distance Balance preference to summary
+                    const lengthText = {
+                        '1': 'Prioritize Shortness', '2': 'Balanced', '3': 'Prioritize Comfort'
+                    }[lengthPreferenceValue];
+                    summaryHtml += `<p class="flex items-center py-0.5"><span class="text-xl mr-2">⚖️</span> <b>Comfort-Distance Balance:</b> ${lengthText}</p>`;
+
+                    // Add Walking Speed preference to summary
+                    const walkingSpeedText = {
+                        '1': 'Slow', '2': 'Moderate', '3': 'Fast'
+                    }[walkingSpeedValue];
+                    summaryHtml += `<p class="flex items-center py-0.5"><span class="text-xl mr-2">🚶</span> <b>Walking Speed:</b> ${walkingSpeedText}</p>`;
+
+                    // Add individual slider preferences to summary (only if not 'Ignore')
+                    allSliders.forEach(slider => {
+                        const sliderValue = slider.value;
+                        if (sliderValue !== '0') { // Only show if Important or Neutral (value !== '0')
+                            const metricId = slider.id;
+                            const displayLabelElement = document.querySelector(`label[for="${metricId}"]`);
+                            if (displayLabelElement) {
+                                const displayLabel = displayLabelElement.textContent.trim().replace(iconMap[metricId], '').trim();
+                                const preferenceText = userPreferenceValueMap[sliderValue];
+                                const icon = iconMap[metricId] || '';
+                                summaryHtml += `<p class="flex items-center py-0.5"><span class="text-xl mr-2">${icon}</span> <b>${displayLabel}:</b> ${preferenceText}</p>`;
+                            }
+                        }
+                    });
+
+                    // Check if any individual preferences (beyond length/speed) are explicitly set
+                    const hasActiveIndividualPreferences = Array.from(allSliders).some(slider => slider.value === '10' || slider.value === '5');
+                    
+                    if (!hasActiveIndividualPreferences) {
+                        summaryHtml += `<p class="mt-2 text-gray-600">All other individual comfort preferences are set to 'Neutral' or 'Ignore'.</p>`;
+                    }
+                    userPreferencesSummary.innerHTML = summaryHtml; // Update the summary section
+
+                } else {
+                    // Handle error response from backend
+                    const errorMessage = result.error || 'An unknown error occurred on the server.';
+                    console.error("Backend error:", errorMessage);
+                    showMessage(`Error generating routes: ${errorMessage}`, 'error');
+                }
+
+            } catch (err) {
+                // Handle network or other fetch-related errors
+                hideLoading();
+                console.error("Error during route generation fetch:", err);
+                showMessage("Could not generate routes. Please ensure the backend server is running and accessible.", 'error');
+            }
+        });
+
+        // Event listener for the visualization metric dropdown change
+        visualizationMetricSelect.addEventListener('change', (event) => {
+            selectedVisualizationMetric = event.target.value === "" ? null : event.target.value;
+            // Re-draw routes with the new visualization style if route data exists
+            if (window.lastComfortRouteData || window.lastShortestRouteData) {
+                updateMapVisualization(window.lastComfortRouteData, window.lastShortestRouteData);
+            }
+        });
+
+    </script>
+
+</body>
+
+</html>

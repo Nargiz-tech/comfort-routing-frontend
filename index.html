@@ -1119,7 +1119,7 @@
 
             try {
                 // Send a POST request to the Flask backend to generate routes
-                const response = await fetch('https://comfort-routing-backend.onrender.com', {
+                const response = await fetch('https://comfort-routing-backend.onrender.com/route', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)

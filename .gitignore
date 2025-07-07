@@ -1,0 +1,15 @@
+# Node modules (if you use npm/yarn for any frontend tooling)
+/node_modules
+
+# Environment variables (if you had any .env files)
+.env
+
+# Build outputs (if you use a build tool like Webpack/Parcel/Vite)
+/dist
+/build
+
+# IDE-specific files
+.idea/
+.vscode/
+*.swp
+*.swo

@@ -4,11 +4,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comfort-based Routing</title>
+    <title>Comfort Route Planner</title>
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
+        /* General styles for HTML, body, and map, setting height and font */
         html,
         body,
         #map {
@@ -124,34 +126,158 @@
             opacity: 0.7;
             border-radius: 2px;
         }
+
         /* Improved alignment for legend items */
         .info.legend .legend-item {
             display: flex;
             align-items: center;
-            margin-bottom: 4px; /* Spacing between legend items */
+            margin-bottom: 4px;
+            /* Spacing between legend items */
         }
+
         .info.legend .legend-item:last-child {
             margin-bottom: 0;
         }
 
         /* Improved spacing for metrics section */
         .metric-item-container {
-            margin-bottom: 12px; /* Spacing between Comfort/Shortest metric groups */
+            margin-bottom: 12px;
+            /* Spacing between Comfort/Shortest metric groups */
         }
+
         .metric-item-container:last-child {
             margin-bottom: 0;
         }
+
         .metric-label-row {
-            margin-bottom: 4px; /* Spacing between metric label and its bars */
+            margin-bottom: 4px;
+            /* Spacing between metric label and its bars */
         }
+
         .metric-value-row {
-            margin-bottom: 4px; /* Spacing between bar and description */
+            margin-bottom: 4px;
+            /* Spacing between bar and description */
         }
 
         /* Centering text below the metric bar */
         .metric-description {
             text-align: center;
             width: 100%;
+        }
+
+        /* Welcome Pop-up Styling */
+        .welcome-popup {
+            display: none;
+            /* Hidden by default */
+            position: fixed;
+            z-index: 1001;
+            /* Above map and other controls */
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+            /* Black w/ opacity */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .welcome-popup-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            max-width: 500px;
+            text-align: center;
+            position: relative;
+        }
+
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            cursor: pointer;
+        }
+
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .welcome-popup-content h2 {
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .welcome-popup-content p {
+            font-size: 1rem;
+            line-height: 1.5;
+            color: #555;
+            margin-bottom: 10px;
+        }
+
+        .welcome-popup-content ul {
+            text-align: left;
+            margin: 0 auto 20px;
+            padding-left: 20px;
+        }
+
+        .welcome-popup-content li {
+            margin-bottom: 5px;
+        }
+
+        .welcome-popup-content button {
+            background-color: #22c55e;
+            /* Green */
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-top: 20px;
+        }
+
+        .welcome-popup-content button:hover {
+            background-color: #16a34a;
+        }
+
+        /* Autocomplete suggestions styling */
+        .autocomplete-suggestions {
+            position: absolute;
+            z-index: 100;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            width: calc(100% - 32px);
+            /* Adjust based on parent padding */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-top: 4px;
+            /* Space between input and suggestions */
+        }
+
+        .autocomplete-suggestion-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            /* text-sm */
+            color: #333;
+        }
+
+        .autocomplete-suggestion-item:hover {
+            background-color: #f0f0f0;
         }
     </style>
 </head>
@@ -164,24 +290,31 @@
             class="w-full md:w-72 bg-white shadow-md p-4 overflow-y-auto rounded-lg md:rounded-l-lg md:rounded-r-none">
             <h2 class="text-2xl font-bold mb-4 text-gray-900">Route Preferences</h2>
 
-            <div class="mb-6 space-y-3">
+            <div class="mb-6 space-y-3 relative">
                 <div>
                     <label class="block text-sm font-medium mb-1 text-gray-700">Start Address</label>
                     <input id="startAddress" type="text" placeholder="e.g. Lerchenstraße 5"
-                        class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500 transition duration-150 ease-in-out">
+                        class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500 transition duration-150 ease-in-out"
+                        title="Enter your starting address or click on the map to set a marker.">
+                    <div id="startAddressSuggestions" class="autocomplete-suggestions hidden"></div>
                 </div>
                 <div>
                     <label class="block text-sm font-medium mb-1 text-gray-700">End Address</label>
                     <input id="endAddress" type="text" placeholder="e.g. Mühlenkamp 21"
-                        class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500 transition duration-150 ease-in-out">
+                        class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500 transition duration-150 ease-in-out"
+                        title="Enter your destination address or click on the map to set a marker.">
+                    <div id="endAddressSuggestions" class="autocomplete-suggestions hidden"></div>
                 </div>
             </div>
+
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Customize Your Comfort Route 👇</h3>
 
             <div class="space-y-4 text-sm">
                 <!-- Safety Preferences Group -->
                 <div class="group">
                     <button type="button" onclick="toggleGroup('safety-group')"
-                        class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors">
+                        class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors"
+                        title="Click to expand/collapse safety preferences.">
                         Safety <svg id="safety-arrow" xmlns="http://www.w3.org/2000/svg"
                             class="h-4 w-4 transition-transform duration-300 transform ml-2 text-gray-600" fill="none"
                             viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -193,10 +326,10 @@
                             <label for="sidewalks" class="block text-gray-700 flex items-center mb-1">
                                 <span class="mr-2">🧱</span> Sidewalks
                             </label>
-                            <input type="range" id="sidewalks" min="0" max="10" step="5" value="5"
-                                class="w-full accent-green-600">
+                            <input type="range" id="sidewalks" min="0" max="10" step="5" value="0"
+                                class="w-full accent-green-600" title="Preference for well-maintained sidewalks.">
                             <div class="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                                <span>Ignore</span><span>Moderate</span><span>Important</span>
                             </div>
                         </div>
 
@@ -204,10 +337,11 @@
                             <label for="surface" class="block text-gray-700 flex items-center mb-1">
                                 <span class="mr-2">🛣️</span> Surface
                             </label>
-                            <input type="range" id="surface" min="0" max="10" step="5" value="5"
-                                class="w-full accent-green-600">
+                            <input type="range" id="surface" min="0" max="10" step="5" value="0"
+                                class="w-full accent-green-600"
+                                title="Preference for smooth and even walking surfaces.">
                             <div class="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                                <span>Ignore</span><span>Moderate</span><span>Important</span>
                             </div>
                         </div>
 
@@ -215,10 +349,11 @@
                             <label for="lights" class="block text-gray-700 flex items-center mb-1">
                                 <span class="mr-2">💡</span> Lights
                             </label>
-                            <input type="range" id="lights" min="0" max="10" step="5" value="5"
-                                class="w-full accent-green-600">
+                            <input type="range" id="lights" min="0" max="10" step="5" value="0"
+                                class="w-full accent-green-600"
+                                title="Preference for well-lit routes, especially at night.">
                             <div class="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                                <span>Ignore</span><span>Moderate</span><span>Important</span>
                             </div>
                         </div>
 
@@ -226,10 +361,10 @@
                             <label for="crossings" class="block text-gray-700 flex items-center mb-1">
                                 <span class="mr-2">🚸</span> Crossings
                             </label>
-                            <input type="range" id="crossings" min="0" max="10" step="5" value="5"
-                                class="w-full accent-green-600">
+                            <input type="range" id="crossings" min="0" max="10" step="5" value="0"
+                                class="w-full accent-green-600" title="Preference for safe and easy road crossings.">
                             <div class="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                                <span>Ignore</span><span>Moderate</span><span>Important</span>
                             </div>
                         </div>
 
@@ -237,10 +372,11 @@
                             <label for="speed" class="block text-gray-700 flex items-center mb-1">
                                 <span class="mr-2">🚘</span> Auto Speed
                             </label>
-                            <input type="range" id="speed" min="0" max="10" step="5" value="5"
-                                class="w-full accent-green-600">
+                            <input type="range" id="speed" min="0" max="10" step="5" value="0"
+                                class="w-full accent-green-600"
+                                title="Preference for routes with lower vehicle speeds.">
                             <div class="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                                <span>Ignore</span><span>Moderate</span><span>Important</span>
                             </div>
                         </div>
 
@@ -248,10 +384,10 @@
                             <label for="lanes" class="block text-gray-700 flex items-center mb-1">
                                 <span class="mr-2">🚗</span> Auto Lanes
                             </label>
-                            <input type="range" id="lanes" min="0" max="10" step="5" value="5"
-                                class="w-full accent-green-600">
+                            <input type="range" id="lanes" min="0" max="10" step="5" value="0"
+                                class="w-full accent-green-600" title="Preference for routes with fewer vehicle lanes.">
                             <div class="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                                <span>Ignore</span><span>Moderate</span><span>Important</span>
                             </div>
                         </div>
                     </div>
@@ -260,7 +396,8 @@
                 <!-- Comfort Preferences Group -->
                 <div class="group">
                     <button type="button" onclick="toggleGroup('comfort-group')"
-                        class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors">
+                        class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors"
+                        title="Click to expand/collapse comfort preferences.">
                         Comfort <svg id="comfort-arrow" xmlns="http://www.w3.org/2000/svg"
                             class="h-4 w-4 transition-transform duration-300 transform ml-2 text-gray-600" fill="none"
                             viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -272,10 +409,11 @@
                             <label for="steepness" class="block text-gray-700 flex items-center mb-1">
                                 <span class="mr-2">🧗</span> Steepness
                             </label>
-                            <input type="range" id="steepness" min="0" max="10" step="5" value="5"
-                                class="w-full accent-green-600">
+                            <input type="range" id="steepness" min="0" max="10" step="5" value="0"
+                                class="w-full accent-green-600"
+                                title="Preference for flatter routes with less incline/decline.">
                             <div class="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                                <span>Ignore</span><span>Moderate</span><span>Important</span>
                             </div>
                         </div>
 
@@ -283,10 +421,10 @@
                             <label for="buildings" class="block text-gray-700 flex items-center mb-1">
                                 <span class="mr-2">🏢</span> Buildings
                             </label>
-                            <input type="range" id="buildings" min="0" max="10" step="5" value="5"
-                                class="w-full accent-green-600">
+                            <input type="range" id="buildings" min="0" max="10" step="5" value="0"
+                                class="w-full accent-green-600" title="Preference for less densely built-up areas.">
                             <div class="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                                <span>Ignore</span><span>Moderate</span><span>Important</span>
                             </div>
                         </div>
 
@@ -294,10 +432,11 @@
                             <label for="benches" class="block text-gray-700 flex items-center mb-1">
                                 <span class="mr-2">🪑</span> Benches
                             </label>
-                            <input type="range" id="benches" min="0" max="10" step="5" value="5"
-                                class="w-full accent-green-600">
+                            <input type="range" id="benches" min="0" max="10" step="5" value="0"
+                                class="w-full accent-green-600"
+                                title="Preference for routes with available seating (benches).">
                             <div class="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                                <span>Ignore</span><span>Moderate</span><span>Important</span>
                             </div>
                         </div>
                     </div>
@@ -306,7 +445,8 @@
                 <!-- Aesthetics Preferences Group -->
                 <div class="group">
                     <button type="button" onclick="toggleGroup('aesthetic-group')"
-                        class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors">
+                        class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors"
+                        title="Click to expand/collapse aesthetic preferences.">
                         Aesthetics <svg id="aesthetic-arrow" xmlns="http://www.w3.org/2000/svg"
                             class="h-4 w-4 transition-transform duration-300 transform ml-2 text-gray-600" fill="none"
                             viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -318,10 +458,11 @@
                             <label for="greenery" class="block text-gray-700 flex items-center mb-1">
                                 <span class="mr-2">🌳</span> Greenery
                             </label>
-                            <input type="range" id="greenery" min="0" max="10" step="5" value="5"
-                                class="w-full accent-green-600">
+                            <input type="range" id="greenery" min="0" max="10" step="5" value="0"
+                                class="w-full accent-green-600"
+                                title="Preference for routes with more trees and green spaces.">
                             <div class="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                                <span>Ignore</span><span>Moderate</span><span>Important</span>
                             </div>
                         </div>
 
@@ -329,10 +470,11 @@
                             <label for="water" class="block text-gray-700 flex items-center mb-1">
                                 <span class="mr-2">🚰</span> Water
                             </label>
-                            <input type="range" id="water" min="0" max="10" step="5" value="5"
-                                class="w-full accent-green-600">
+                            <input type="range" id="water" min="0" max="10" step="5" value="0"
+                                class="w-full accent-green-600"
+                                title="Preference for routes with views of water bodies.">
                             <div class="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                                <span>Ignore</span><span>Moderate</span><span>Important</span>
                             </div>
                         </div>
 
@@ -340,10 +482,11 @@
                             <label for="attractiveness" class="block text-gray-700 flex items-center mb-1">
                                 <span class="mr-2">✨</span> Attractiveness
                             </label>
-                            <input type="range" id="attractiveness" min="0" max="10" step="5" value="5"
-                                class="w-full accent-green-600">
+                            <input type="range" id="attractiveness" min="0" max="10" step="5" value="0"
+                                class="w-full accent-green-600"
+                                title="Preference for visually pleasant and attractive routes.">
                             <div class="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                                <span>Ignore</span><span>Moderate</span><span>Important</span>
                             </div>
                         </div>
                     </div>
@@ -352,7 +495,8 @@
                 <!-- Functionality Preferences Group -->
                 <div class="group">
                     <button type="button" onclick="toggleGroup('function-group')"
-                        class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors">
+                        class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors"
+                        title="Click to expand/collapse functionality preferences.">
                         Functionality <svg id="function-arrow" xmlns="http://www.w3.org/2000/svg"
                             class="h-4 w-4 transition-transform duration-300 transform ml-2 text-gray-600" fill="none"
                             viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -364,10 +508,11 @@
                             <label for="facilities" class="block text-gray-700 flex items-center mb-1">
                                 <span class="mr-2">🏪</span> Facilities
                             </label>
-                            <input type="range" id="facilities" min="0" max="10" step="5" value="5"
-                                class="w-full accent-green-600">
+                            <input type="range" id="facilities" min="0" max="10" step="5" value="0"
+                                class="w-full accent-green-600"
+                                title="Preference for routes with nearby facilities like shops or restrooms.">
                             <div class="flex justify-between text-xs text-gray-500 mt-1">
-                                <span>Ignore</span><span>Neutral</span><span>Important</span>
+                                <span>Ignore</span><span>Moderate</span><span>Important</span>
                             </div>
                         </div>
                     </div>
@@ -375,19 +520,23 @@
 
                 <!-- Comfort-Distance Balance Slider -->
                 <div class="pt-4 border-t border-gray-200 mt-4">
-                    <label for="length" class="block text-gray-700 font-semibold mb-1">⚖️ Comfort-Distance Balance</label>
-                    <input type="range" id="length" min="1" max="3" value="2" class="w-full accent-green-600">
+                    <label for="length" class="block text-gray-700 font-semibold mb-1">⚖️ Prioritize comfort or
+                        distance?</label>
+                    <input type="range" id="length" min="1" max="3" value="2" class="w-full accent-green-600"
+                        title="Adjust the balance between the route's comfort and its length.">
                     <div class="grid grid-cols-3 text-xs text-gray-500 mt-1">
-                        <span class="text-left">Prioritize Shortness</span>
+                        <span class="text-left">Distance</span>
                         <span class="text-center">Balanced</span>
-                        <span class="text-right">Prioritize Comfort</span>
+                        <span class="text-right">Comfort</span>
                     </div>
                 </div>
 
                 <!-- Walking Speed Slider -->
                 <div class="pt-4 border-t border-gray-200 mt-4">
-                    <label for="walkingSpeed" class="block text-gray-700 font-semibold mb-1">🚶 Walking Speed</label>
-                    <input type="range" id="walkingSpeed" min="1" max="3" value="2" class="w-full accent-green-600">
+                    <label for="walkingSpeed" class="block text-gray-700 font-semibold mb-1">🚶 What is your preferred
+                        walking pace?</label>
+                    <input type="range" id="walkingSpeed" min="1" max="3" value="2" class="w-full accent-green-600"
+                        title="Select your typical walking pace for estimated travel time calculation.">
                     <div class="flex justify-between text-xs text-gray-500 mt-1">
                         <span class="w-1/3 text-left">Slow</span>
                         <span class="w-1/3 text-center">Moderate</span>
@@ -399,7 +548,8 @@
 
             <!-- Button to trigger route generation -->
             <button id="generateRoutesButton"
-                class="mt-6 w-full bg-green-600 text-white py-3 rounded-full shadow-lg hover:bg-green-700 transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75">
+                class="mt-6 w-full bg-green-600 text-white py-3 rounded-full shadow-lg hover:bg-green-700 transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-75"
+                title="Generate comfort and shortest routes based on your preferences.">
                 Generate Routes
             </button>
 
@@ -422,7 +572,8 @@
 
             <!-- "My Location" Button -->
             <button id="findMeButton"
-                class="absolute bottom-4 right-4 z-10 bg-white p-3 rounded-full shadow-lg hover:bg-gray-100 transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75">
+                class="absolute bottom-4 right-4 z-10 bg-white p-3 rounded-full shadow-lg hover:bg-gray-100 transition duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75"
+                title="Find your current location on the map.">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24"
                     stroke="currentColor" stroke-width="2">
                     <path stroke-linecap="round" stroke-linejoin="round"
@@ -444,10 +595,6 @@
                         <p class="font-semibold text-green-800 mb-1">🟢 Comfort-optimized route</p>
                         <p id="comfortRouteLength" class="text-gray-700">Total length: Calculating...</p>
                         <p id="comfortRouteTime" class="text-gray-700">Estimated time: Calculating...</p>
-                        <!-- Summary of user preferences -->
-                        <div id="userPreferencesSummary" class="mt-3 pt-2 border-t border-green-200 text-green-700 space-y-2">
-                            <p class="font-semibold mb-1">Your Custom Preferences:</p>
-                        </div>
                     </div>
                     <div class="p-4 rounded-xl bg-blue-50 shadow-sm border border-blue-200">
                         <p class="font-semibold text-blue-800 mb-1">🔵 Shortest route</p>
@@ -456,14 +603,33 @@
                     </div>
                 </div>
 
+                <!-- User Preferences Summary -->
+                <div class="group pt-4 border-t border-gray-200 mt-4">
+                    <button type="button" onclick="toggleGroup('user-prefs-summary-group')"
+                        class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors"
+                        title="Click to expand/collapse your selected route preferences.">
+                        Your Preferences <svg id="user-prefs-summary-arrow" xmlns="http://www.w3.org/2000/svg"
+                            class="h-4 w-4 transition-transform duration-300 transform ml-2 text-gray-600" fill="none"
+                            viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </button>
+                    <div id="user-prefs-summary-group" class="hidden space-y-3 mt-2 pl-4 border-l-2 border-gray-200">
+                        <div id="userPreferencesSummary" class="text-gray-700 text-sm space-y-1">
+                            <!-- Summary will be populated by JS -->
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Average Qualities Section -->
                 <div class="pt-4 border-t border-gray-200 mt-4 space-y-4">
-                    <h3 class="text-lg font-semibold text-gray-900 mb-3">Average Qualities:</h3>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-3">Route Statistics:</h3>
 
                     <!-- Metrics Safety Group -->
                     <div class="group">
                         <button type="button" onclick="toggleGroup('metrics-safety-group')"
-                            class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors">
+                            class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors"
+                            title="Click to expand/collapse safety statistics.">
                             Safety <svg id="metrics-safety-arrow" xmlns="http://www.w3.org/2000/svg"
                                 class="h-4 w-4 transition-transform duration-300 transform ml-2 text-gray-600"
                                 fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -478,7 +644,8 @@
                     <!-- Metrics Comfort Group -->
                     <div class="group">
                         <button type="button" onclick="toggleGroup('metrics-comfort-group')"
-                            class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors">
+                            class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors"
+                            title="Click to expand/collapse comfort statistics.">
                             Comfort <svg id="metrics-comfort-arrow" xmlns="http://www.w3.org/2000/svg"
                                 class="h-4 w-4 transition-transform duration-300 transform ml-2 text-gray-600"
                                 fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -493,7 +660,8 @@
                     <!-- Metrics Aesthetics Group -->
                     <div class="group">
                         <button type="button" onclick="toggleGroup('metrics-aesthetic-group')"
-                            class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors">
+                            class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors"
+                            title="Click to expand/collapse aesthetics statistics.">
                             Aesthetics <svg id="metrics-aesthetic-arrow" xmlns="http://www.w3.org/2000/svg"
                                 class="h-4 w-4 transition-transform duration-300 transform ml-2 text-gray-600"
                                 fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -508,7 +676,8 @@
                     <!-- Metrics Functionality Group -->
                     <div class="group">
                         <button type="button" onclick="toggleGroup('metrics-function-group')"
-                            class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors">
+                            class="font-semibold w-full text-left py-2 px-3 rounded-md hover:bg-gray-100 flex items-center justify-between transition-colors"
+                            title="Click to expand/collapse functionality statistics.">
                             Functionality <svg id="metrics-function-arrow" xmlns="http://www.w3.org/2000/svg"
                                 class="h-4 w-4 transition-transform duration-300 transform ml-2 text-gray-600"
                                 fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -527,17 +696,41 @@
                             Visualize Metric on Map:
                         </label>
                         <select id="visualizationMetricSelect"
-                            class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500 transition duration-150 ease-in-out">
+                            class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500 transition duration-150 ease-in-out"
+                            title="Select a metric to visualize its values along the route segments on the map.">
                             <option value="">-- Default Route Colors --</option>
                             <!-- Options will be populated by JS -->
                         </select>
                     </div>
 
                 </div>
+
+
+
             </div>
         </aside>
     </div>
 
+    <!-- Welcome Pop-up -->
+    <div id="welcomePopup" class="welcome-popup">
+        <div class="welcome-popup-content">
+            <span class="close-button" id="closeWelcomePopup" title="Close this window.">&times;</span>
+            <h2>Welcome to Comfort Route Planner! 👋</h2>
+            <p>Plan your perfect walk by customizing your route preferences. Choose between the shortest path or a more
+                comfortable one based on factors like safety, scenery, and amenities.</p>
+            <p>This work was created as part of Nargiz Amralina's Master's thesis at TUM.</p>
+            <p>Here's how to get started:</p>
+            <ul class="list-disc list-inside text-left mx-auto max-w-xs text-sm text-gray-600 mb-4">
+                <li>Enter your **Start** and **End** addresses, or click on the map to set points.</li>
+                <li>Adjust the **sliders** to prioritize what's important to you.</li>
+                <li>Click **"Generate Routes"** to see your personalized comfort and shortest paths.</li>
+            </ul>
+            <button id="gotItButton" title="Understood, close this window.">Got It!</button>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
         /**
          * Toggles the visibility of a group of elements and rotates its arrow icon.
@@ -604,7 +797,7 @@
             endMarker = null;
         let activeClick = null; // To track if user is setting start/end point via map click
         window.startCoords = null; // Global variable to store start coordinates
-        window.endCoords = null;   // Global variable to store end coordinates
+        window.endCoords = null; // Global variable to store end coordinates
 
         // Leaflet GeoJSON layers for comfort and shortest routes
         let comfortRouteLayer = null;
@@ -619,6 +812,16 @@
         const loadingIndicator = document.getElementById('loadingIndicator');
         const userPreferencesSummary = document.getElementById('userPreferencesSummary');
         const visualizationMetricSelect = document.getElementById('visualizationMetricSelect');
+        const welcomePopup = document.getElementById('welcomePopup');
+        const closeWelcomePopup = document.getElementById('closeWelcomePopup');
+        const gotItButton = document.getElementById('gotItButton');
+
+        // Get elements for autocomplete
+        const startAddressInput = document.getElementById('startAddress');
+        const startAddressSuggestions = document.getElementById('startAddressSuggestions');
+        const endAddressInput = document.getElementById('endAddress');
+        const endAddressSuggestions = document.getElementById('endAddressSuggestions');
+
 
         // Initialize Leaflet legend control
         let legend = L.control({ position: 'bottomleft' });
@@ -718,16 +921,17 @@
                 if (activeClick === 'start') {
                     if (startMarker) map.removeLayer(startMarker); // Remove existing start marker
                     startMarker = L.marker([lat, lng], { icon: startIcon }).addTo(map); // Add new start marker
-                    document.getElementById('startAddress').value = address; // Update input field
+                    startAddressInput.value = address; // Update input field
                     window.startCoords = { lat, lon: lng }; // Store coordinates globally
                 } else if (activeClick === 'end') {
                     if (endMarker) map.removeLayer(endMarker); // Remove existing end marker
                     endMarker = L.marker([lat, lng], { icon: endIcon }).addTo(map); // Add new end marker
-                    document.getElementById('endAddress').value = address; // Update input field
+                    endAddressInput.value = address; // Update input field
                     window.endCoords = { lat, lon: lng }; // Store coordinates globally
                 }
                 activeClick = null; // Deactivate map click mode
                 map.getContainer().style.cursor = ''; // Reset map cursor
+                hideMessage(); // Hide the "Click on map" message
             }).catch(error => {
                 console.error("Reverse geocoding error:", error);
                 showMessage("Failed to get address from map click.", "error");
@@ -736,16 +940,99 @@
 
         // Event listeners for map interaction and location finding
         map.on('click', onMapClick); // Listen for map clicks
-        document.getElementById('startAddress').addEventListener('focus', () => {
+
+        // Event handlers for address input fields
+        startAddressInput.addEventListener('focus', () => {
             activeClick = 'start'; // Set active click mode to 'start'
             map.getContainer().style.cursor = 'crosshair'; // Change cursor to crosshair
-            showMessage('Click on the map to set start location.', 'info');
+            showMessage('Click on the map to set start location or type address.', 'info');
         });
-        document.getElementById('endAddress').addEventListener('focus', () => {
+
+        endAddressInput.addEventListener('focus', () => {
             activeClick = 'end'; // Set active click mode to 'end'
             map.getContainer().style.cursor = 'crosshair'; // Change cursor to crosshair
-            showMessage('Click on the map to set end location.', 'info');
+            showMessage('Click on the map to set end location or type address.', 'info');
         });
+
+        // Event handlers to disable map click mode when user starts typing manually
+        startAddressInput.addEventListener('input', (e) => {
+            // Disable map click mode only if user is actually typing
+            // (not when value is changed programmatically)
+            if (activeClick === 'start' && e.inputType) {
+                activeClick = null;
+                map.getContainer().style.cursor = '';
+                hideMessage();
+            }
+
+            // IMPORTANT: Clear stored coordinates when manually typing
+            if (e.inputType) {
+                window.startCoords = null;
+                // Remove start marker if it was set by map click
+                if (startMarker) {
+                    map.removeLayer(startMarker);
+                    startMarker = null;
+                }
+            }
+            autocompleteAddress(startAddressInput, startAddressSuggestions, 'start');
+        });
+
+        endAddressInput.addEventListener('input', (e) => {
+            // Disable map click mode only if user is actually typing
+            // (not when value is changed programmatically)
+            if (activeClick === 'end' && e.inputType) {
+                activeClick = null;
+                map.getContainer().style.cursor = '';
+                hideMessage();
+            }
+
+            // IMPORTANT: Clear stored coordinates when manually typing
+            if (e.inputType) {
+                window.endCoords = null;
+                // Remove end marker if it was set by map click
+                if (endMarker) {
+                    map.removeLayer(endMarker);
+                    endMarker = null;
+                }
+            }
+            autocompleteAddress(endAddressInput, endAddressSuggestions, 'end');
+        });
+
+        // Event handlers for blur events - additional protection
+        startAddressInput.addEventListener('blur', () => {
+            if (activeClick === 'start') {
+                // Add slight delay to allow map click to process first
+                setTimeout(() => {
+                    if (activeClick === 'start') {
+                        activeClick = null;
+                        map.getContainer().style.cursor = '';
+                        hideMessage();
+                    }
+                }, 2000);
+            }
+            // Hide suggestions on blur after a short delay to allow click on suggestion
+            setTimeout(() => {
+                startAddressSuggestions.classList.add('hidden');
+            }, 100);
+        });
+
+        endAddressInput.addEventListener('blur', () => {
+            if (activeClick === 'end') {
+                // Add slight delay to allow map click to process first
+                setTimeout(() => {
+                    if (activeClick === 'end') {
+                        activeClick = null;
+                        map.getContainer().style.cursor = '';
+                        hideMessage();
+                    }
+                }, 2000);
+            }
+            // Hide suggestions on blur after a short delay to allow click on suggestion
+            setTimeout(() => {
+                endAddressSuggestions.classList.add('hidden');
+            }, 100);
+        });
+
+
         document.getElementById('findMeButton').addEventListener('click', () => {
             showLoading();
             map.locate({ setView: true, maxZoom: 16, enableHighAccuracy: true }); // Locate user's position
@@ -761,6 +1048,81 @@
             console.error("Geolocation error:", e.message);
             showMessage(`Could not find your location: ${e.message}`, 'error');
         });
+
+        // Autocomplete Logic
+        let autocompleteTimeout;
+
+        /**
+         * Handles address autocompletion for a given input field.
+         * @param {HTMLInputElement} inputElement - The input field for which to provide suggestions.
+         * @param {HTMLElement} suggestionsContainer - The container element to display suggestions.
+         * @param {string} coordsType - 'start' or 'end' to determine which global coordinate variable to update.
+         */
+        function autocompleteAddress(inputElement, suggestionsContainer, coordsType) {
+            clearTimeout(autocompleteTimeout);
+            const query = inputElement.value.trim();
+
+            if (query.length < 3) { // Only fetch suggestions if query is at least 3 characters
+                suggestionsContainer.classList.add('hidden');
+                suggestionsContainer.innerHTML = '';
+                return;
+            }
+
+            autocompleteTimeout = setTimeout(async () => {
+                const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(query)}`;
+                try {
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    displaySuggestions(data, inputElement, suggestionsContainer, coordsType);
+                } catch (error) {
+                    console.error("Autocomplete fetch error:", error);
+                    suggestionsContainer.classList.add('hidden'); // Hide suggestions on error
+                }
+            }, 300); // Debounce time
+        }
+
+        /**
+         * Displays the fetched autocomplete suggestions.
+         * @param {Array<object>} suggestions - Array of suggestion objects from Nominatim.
+         * @param {HTMLInputElement} inputElement - The input field associated with these suggestions.
+         * @param {HTMLElement} suggestionsContainer - The container to display suggestions.
+         * @param {string} coordsType - 'start' or 'end'.
+         */
+        function displaySuggestions(suggestions, inputElement, suggestionsContainer, coordsType) {
+            suggestionsContainer.innerHTML = ''; // Clear previous suggestions
+            suggestionsContainer.classList.remove('hidden'); // Show container
+
+            if (suggestions.length === 0) {
+                suggestionsContainer.classList.add('hidden');
+                return;
+            }
+
+            suggestions.forEach(suggestion => {
+                const suggestionItem = document.createElement('div');
+                suggestionItem.classList.add('autocomplete-suggestion-item');
+                suggestionItem.textContent = suggestion.display_name;
+                suggestionItem.addEventListener('mousedown', (e) => { // Use mousedown to prevent blur event from hiding too soon
+                    e.preventDefault(); // Prevent input from losing focus immediately
+                    inputElement.value = suggestion.display_name;
+                    const coords = { lat: parseFloat(suggestion.lat), lon: parseFloat(suggestion.lon) };
+                    if (coordsType === 'start') {
+                        window.startCoords = coords;
+                        if (startMarker) map.removeLayer(startMarker);
+                        startMarker = L.marker([coords.lat, coords.lon], { icon: startIcon }).addTo(map).bindPopup("Start").openPopup();
+                    } else {
+                        window.endCoords = coords;
+                        if (endMarker) map.removeLayer(endMarker);
+                        endMarker = L.marker([coords.lat, coords.lon], { icon: endIcon }).addTo(map).bindPopup("End").openPopup();
+                    }
+                    suggestionsContainer.classList.add('hidden'); // Hide suggestions
+                    suggestionsContainer.innerHTML = ''; // Clear suggestions
+                    activeClick = null; // Deactivate map click mode if it was active
+                    map.getContainer().style.cursor = ''; // Reset map cursor
+                    hideMessage(); // Hide any "Click on map" message
+                });
+                suggestionsContainer.appendChild(suggestionItem);
+            });
+        }
 
 
         /**
@@ -848,7 +1210,7 @@
         // Mapping for user slider preferences text (0, 5, 10) to descriptive strings
         const userPreferenceValueMap = {
             '0': 'Ignore',
-            '5': 'Neutral',
+            '5': 'Moderate',
             '10': 'Important'
         };
 
@@ -862,7 +1224,7 @@
             lanes: '🚗',
             steepness: '🧗',
             buildings: '🏢',
-            benches: '�',
+            benches: '🪑',
             greenery: '🌳',
             water: '🚰',
             attractiveness: '✨',
@@ -1023,32 +1385,31 @@
             if (!metricKey) {
                 // Display legend for default route colors
                 this._div.innerHTML = '<h4>Route Legend</h4>' +
-                                      '<div class="legend-item"><i style="background:#38a169;"></i> Comfort Route</div>' +
-                                      '<div class="legend-item"><i style="background:#3182ce;"></i> Shortest Route</div>';
+                    '<div class="legend-item"><i style="background:#38a169;"></i> Comfort Route</div>' +
+                    '<div class="legend-item"><i style="background:#3182ce;"></i> Shortest Route</div>';
                 return;
             }
 
             // Display legend for a specific metric visualization
             const metricLabel = metricDisplayInfo[metricKey] ? metricDisplayInfo[metricKey].label : metricKey;
-            const grades = [0, 0.25, 0.50, 0.75]; // Numeric boundaries for categories
+            const grades = [0, 0.25, 0.50, 0.75, 1.00]; // Numeric boundaries for categories
             let labels = ['<h4>' + metricLabel + ' Score</h4>'];
 
             // Generate legend items for each metric category
-            for (let i = 0; i < grades.length; i++) {
+            for (let i = 0; i < grades.length - 1; i++) {
                 const lowerBound = grades[i];
-                const upperBound = (i === grades.length - 1) ? 1.00 : grades[i + 1];
-                
+                const upperBound = grades[i + 1];
+
                 // Use the midpoint of the range to get the representative color and category description
                 const testValue = lowerBound + (upperBound - lowerBound) / 2;
 
-                const color = getColorForValue(testValue); 
+                const color = getColorForValue(testValue);
                 const categoryDesc = getMetricCategoryLabel(testValue, metricKey);
 
                 if (categoryDesc !== 'N/A') {
-                     labels.push(
+                    labels.push(
                         '<div class="legend-item"><i style="background:' + color + ';"></i> ' +
-                        `${lowerBound.toFixed(2)} &ndash; ${upperBound.toFixed(2)}: ` +
-                        `${categoryDesc}</div>`
+                        `${categoryDesc} (${lowerBound.toFixed(2)} &ndash; ${upperBound.toFixed(2)})</div>`
                     );
                 }
             }
@@ -1069,14 +1430,14 @@
             showLoading(); // Show loading indicator
 
             let start = window.startCoords; // Get start coordinates from global variable
-            let end = window.endCoords;     // Get end coordinates from global variable
+            let end = window.endCoords; // Get end coordinates from global variable
 
-            const startAddressInput = document.getElementById('startAddress').value.trim();
-            const endAddressInput = document.getElementById('endAddress').value.trim();
+            const startAddressInputValue = startAddressInput.value.trim();
+            const endAddressInputValue = endAddressInput.value.trim();
 
             // Geocode start address if not set via map click
-            if (!start && startAddressInput) {
-                start = await geocodeAddress(startAddressInput);
+            if (!start && startAddressInputValue) {
+                start = await geocodeAddress(startAddressInputValue);
                 if (!start) { hideLoading(); return; } // Stop if geocoding fails
             } else if (!start) {
                 hideLoading();
@@ -1085,8 +1446,8 @@
             }
 
             // Geocode end address if not set via map click
-            if (!end && endAddressInput) {
-                end = await geocodeAddress(endAddressInput);
+            if (!end && endAddressInputValue) {
+                end = await geocodeAddress(endAddressInputValue);
                 if (!end) { hideLoading(); return; } // Stop if geocoding fails
             } else if (!end) {
                 hideLoading();
@@ -1106,7 +1467,7 @@
                 facilities: parseInt(document.getElementById('facilities').value),
                 lanes: parseInt(document.getElementById('lanes').value),
                 water: parseInt(document.getElementById('water').value),
-                
+
                 benches: parseInt(document.getElementById('benches').value),
                 lights: parseInt(document.getElementById('lights').value),
                 attractiveness: parseInt(document.getElementById('attractiveness').value),
@@ -1244,20 +1605,22 @@
 
                     // Add Comfort-Distance Balance preference to summary
                     const lengthText = {
-                        '1': 'Prioritize Shortness', '2': 'Balanced', '3': 'Prioritize Comfort'
+                        '1': 'Distance',
+                        '2': 'Balanced',
+                        '3': 'Comfort'
                     }[lengthPreferenceValue];
-                    summaryHtml += `<p class="flex items-center py-0.5"><span class="text-xl mr-2">⚖️</span> <b>Comfort-Distance Balance:</b> ${lengthText}</p>`;
+                    summaryHtml += `<p class="flex items-center py-0.5"><span class="text-xl mr-2">⚖️</span> <b>Prioritize : </b> ${lengthText}</p>`;
 
                     // Add Walking Speed preference to summary
                     const walkingSpeedText = {
                         '1': 'Slow', '2': 'Moderate', '3': 'Fast'
                     }[walkingSpeedValue];
-                    summaryHtml += `<p class="flex items-center py-0.5"><span class="text-xl mr-2">🚶</span> <b>Walking Speed:</b> ${walkingSpeedText}</p>`;
+                    summaryHtml += `<p class="flex items-center py-0.5"><span class="text-xl mr-2">🚶</span> <b>Walking Speed: </b> ${walkingSpeedText}</p>`;
 
                     // Add individual slider preferences to summary (only if not 'Ignore')
                     allSliders.forEach(slider => {
                         const sliderValue = slider.value;
-                        if (sliderValue !== '0') { // Only show if Important or Neutral (value !== '0')
+                        if (sliderValue !== '0') { // Only show if Important or Moderate (value !== '0')
                             const metricId = slider.id;
                             const displayLabelElement = document.querySelector(`label[for="${metricId}"]`);
                             if (displayLabelElement) {
@@ -1271,9 +1634,9 @@
 
                     // Check if any individual preferences (beyond length/speed) are explicitly set
                     const hasActiveIndividualPreferences = Array.from(allSliders).some(slider => slider.value === '10' || slider.value === '5');
-                    
+
                     if (!hasActiveIndividualPreferences) {
-                        summaryHtml += `<p class="mt-2 text-gray-600">All other individual comfort preferences are set to 'Neutral' or 'Ignore'.</p>`;
+                        summaryHtml += `<p class="mt-2 text-gray-600">All other individual comfort preferences are set to 'Ignore' by default, or 'Moderate'.</p>`;
                     }
                     userPreferencesSummary.innerHTML = summaryHtml; // Update the summary section
 
@@ -1301,6 +1664,22 @@
             }
         });
 
+        // Welcome Pop-up Logic
+        function showWelcomePopup() {
+            if (!localStorage.getItem('comfortRoutePlannerWelcomeShown')) {
+                welcomePopup.style.display = 'flex';
+            }
+        }
+
+        function hideWelcomePopup() {
+            welcomePopup.style.display = 'none';
+            localStorage.setItem('comfortRoutePlannerWelcomeShown', 'true');
+        }
+
+        // Event listeners for welcome pop-up
+        closeWelcomePopup.addEventListener('click', hideWelcomePopup);
+        gotItButton.addEventListener('click', hideWelcomePopup);
+        window.addEventListener('load', showWelcomePopup);
     </script>
 
 </body>

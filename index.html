@@ -879,7 +879,10 @@
          */
         async function geocodeAddress(address) {
             showLoading();
-            const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
+            // Approximate bounding box for Munich: south, west, north, east
+            // These coordinates define a box around Munich city.
+            const munichViewbox = '11.35,48.05,11.75,48.25'; // lon_min,lat_min,lon_max,lat_max
+            const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&viewbox=${munichViewbox}&bounded=1`;
             try {
                 const response = await fetch(url);
                 const data = await response.json();
@@ -1069,7 +1072,12 @@
             }
 
             autocompleteTimeout = setTimeout(async () => {
-                const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(query)}`;
+                // Approximate bounding box for Munich: south, west, north, east
+                // These coordinates define a box around Munich city.
+                const munichViewbox = '11.35,48.05,11.75,48.25'; // lon_min,lat_min,lon_max,lat_max
+                // 'bounded=1' ensures that results are strictly within the viewbox.
+                // 'countrycodes=de' can also be added for Germany specific results, but viewbox is stronger for city.
+                const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(query)}&viewbox=${munichViewbox}&bounded=1`;
                 try {
                     const response = await fetch(url);
                     const data = await response.json();
@@ -1080,7 +1088,6 @@
                 }
             }, 300); // Debounce time
         }
-
         /**
          * Displays the fetched autocomplete suggestions.
          * @param {Array<object>} suggestions - Array of suggestion objects from Nominatim.

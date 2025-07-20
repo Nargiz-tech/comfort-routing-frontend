@@ -621,6 +621,20 @@
                     </div>
                 </div>
 
+                <!-- Map Visualization Options -->
+                <div class="pt-4 border-t border-gray-200 mt-4">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-3">Map Visualization Options:</h3>
+                    <label for="visualizationMetricSelect" class="block text-gray-700 font-semibold mb-1">
+                        Visualize Metric on Map:
+                    </label>
+                    <select id="visualizationMetricSelect"
+                        class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500 transition duration-150 ease-in-out"
+                        title="Select a metric to visualize its values along the route segments on the map.">
+                        <option value="">-- Default Route Colors --</option>
+                        <!-- Options will be populated by JS -->
+                    </select>
+                </div>
+
                 <!-- Average Qualities Section -->
                 <div class="pt-4 border-t border-gray-200 mt-4 space-y-4">
                     <h3 class="text-lg font-semibold text-gray-900 mb-3">Route Statistics:</h3>
@@ -689,19 +703,6 @@
                         </div>
                     </div>
 
-                    <!-- Map Visualization Options -->
-                    <div class="pt-4 border-t border-gray-200 mt-4">
-                        <h3 class="text-lg font-semibold text-gray-900 mb-3">Map Visualization Options:</h3>
-                        <label for="visualizationMetricSelect" class="block text-gray-700 font-semibold mb-1">
-                            Visualize Metric on Map:
-                        </label>
-                        <select id="visualizationMetricSelect"
-                            class="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-green-500 focus:border-green-500 transition duration-150 ease-in-out"
-                            title="Select a metric to visualize its values along the route segments on the map.">
-                            <option value="">-- Default Route Colors --</option>
-                            <!-- Options will be populated by JS -->
-                        </select>
-                    </div>
 
                 </div>
 

@@ -757,13 +757,13 @@
             subdomains: 'abc' // Use multiple subdomains for faster tile loading
         });
 
-        const cartoLightLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        const cartoLightLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_4mlc_1_da9e362a07c882da78c5b55b', {
             attribution: '&copy; <a href="https://carto.com/">CARTO</a> | &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
             subdomains: 'abcd',
             maxZoom: 19
         }).addTo(map); // Add CARTO Light layer to map by default
 
-        const cartoDarkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        const cartoDarkLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png?key=cb1_4mlc_1_da9e362a07c882da78c5b55b', {
             attribution: '&copy; <a href="https://carto.com/">CARTO</a> | &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
             subdomains: 'abcd',
             maxZoom: 19
